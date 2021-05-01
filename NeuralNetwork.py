@@ -40,6 +40,9 @@ class Brain(nn.Module):
             for _ in range(initial_connections):
                 self.makeConnection()
 
+            self.topologicalSort()
+            self.createArchitecture()
+
         else:
             # Merge Parents
             parent1 = in_size
@@ -52,12 +55,19 @@ class Brain(nn.Module):
             self.output_size = parent1.output_size
             self.remaining_inputs = parent1.remaining_inputs
             self.remaining_outputs = parent1.remaining_outputs
-            self.order=parent1.order
-            self.depth=parent1.depth
+
+            for inp in range(self.input_size):
+                self.remaining_inputs.append("inp"+str(inp+1))
+                self.depth["inp"+str(inp+1)] = 0
+
+            for out in range(self.output_size):
+                self.remaining_outputs.append("out"+str(out+1))
+                self.DNA["out"+str(out+1)]=[]
+                self.depth["out"+str(out+1)] = 1
 
             self.crossover(parent1.getGenome(),parent2.getGenome())
         
-        self.createArchitecture()
+        #self.drawNetwork()
 
 ########################################################################################################################
 
@@ -66,26 +76,29 @@ class Brain(nn.Module):
         parent2_conns = set(parent2.keys())
         common = parent1_conns.intersection(parent2_conns)
         exs_disj = parent1_conns.difference(parent2_conns)
-        for inv in common:
-            if random.random()<=0.5:
-                self.mutateAddConnection(parent1[inv]['from'],
-                                         parent1[inv]['to'],
-                                         parent1[inv]['weight'],
-                                         parent1[inv]['direction'],
-                                         parent1[inv]['active'])
+        for inv in sorted(common.union(exs_disj)):
+            if inv in parent2_conns:
+                if random.random()<=0.6:
+                    self.makeConnection(parent1[inv]['from'],
+                                             parent1[inv]['to'],
+                                             parent1[inv]['weight'],
+                                             parent1[inv]['direction'],
+                                             parent1[inv]['active'])
+                else:
+                    self.makeConnection(parent2[inv]['from'],
+                                             parent2[inv]['to'],
+                                             parent2[inv]['weight'],
+                                             parent2[inv]['direction'],
+                                             parent2[inv]['active'])
             else:
-                self.mutateAddConnection(parent2[inv]['from'],
-                                         parent2[inv]['to'],
-                                         parent2[inv]['weight'],
-                                         parent2[inv]['direction'],
-                                         parent2[inv]['active'])
-
-        for inv in exs_disj:
-                self.mutateAddConnection(parent1[inv]['from'],
-                                         parent1[inv]['to'],
-                                         parent1[inv]['weight'],
-                                         parent1[inv]['direction'],
-                                         parent1[inv]['active'])
+                    self.makeConnection(parent1[inv]['from'],
+                                             parent1[inv]['to'],
+                                             parent1[inv]['weight'],
+                                             parent1[inv]['direction'],
+                                             parent1[inv]['active'])
+        self.mutate()
+        self.topologicalSort()
+        self.createArchitecture()
 
 ########################################################################################################################
 
@@ -97,6 +110,7 @@ class Brain(nn.Module):
                 for connection in self.DNA[node]:
                     connections.append(connection["from"])
                     weights.append(connection["weight"])
+                self.node_data[node] = []
                 self.node_data[node].append(connections)
                 wghts = th.cat(weights,dim=1)
                 wghts = nn.Parameter(wghts)
@@ -128,7 +142,11 @@ class Brain(nn.Module):
                 dep = self.topologicalSortUtil(pnode,visited)
                 parent_depth.append(dep)
             else:
-                parent_depth.append(self.depth[pnode])
+                try:
+                    parent_depth.append(self.depth[pnode])
+                except KeyError:
+                    print(pnode,visited[pnode])
+
 
         current_depth = max(parent_depth)+1
 
@@ -144,9 +162,9 @@ class Brain(nn.Module):
         self.order = []
         self.depth=dict()
 
-        nodes = list(self.DNA.keys())
+        nodes = list( self.DNA.keys())
         for node in nodes:
-            if visited[node] == False and len(self.DNA[node])>0:
+            if visited[node] == False and not node in self.order:
                 self.topologicalSortUtil(node,visited)
 
         mn_inp_dep = min(self.depth.values())
@@ -184,7 +202,7 @@ class Brain(nn.Module):
                                 continue
                             direction = 'b'
                         if direction=='b':
-                            if random.random()<0.4:
+                            if random.random()<0.1:
                                 continue
 
                         break
@@ -203,6 +221,7 @@ class Brain(nn.Module):
         else:
             conn = Brain.CONNECTION_RECORD[(cfrm,cto)]
 
+
         self.DNA[cto].append( {'innov':conn,
                                 'from':cfrm,
                                 'weight':newweight,
@@ -214,41 +233,81 @@ class Brain(nn.Module):
             self.remaining_inputs.remove(cfrm)
         self.topologicalSort()
 
+########################################################################################################################
+
+    def modifyWeights(self,frm,to):
+        for conn in self.DNA[to]:
+            if conn['from']==frm and conn['active']:
+                if random.random()>0.98:
+                    conn['weight']+=th.randint(-97,97,conn['weight'].shape)/(97*4)
+                else:
+                    conn['weight']=th.randint(-97,97,conn['weight'].shape)/(97)
 
 ########################################################################################################################
 
-    def splitConnection(self,frm,to,weight,direction,active):
-        if direction=='b'or not active:
-            self.makeConnection(frm,to,weight,direction,active)
-            return
-        if Brain.HIDDEN_UNIT_RECORD[(frm,to)] == -1:
-            newnode = "hid"+str(Brain.HIDDEN_UNIT_ID)
-            Brain.HIDDEN_UNIT_ID+=1
-            Brain.HIDDEN_UNIT_RECORD[(frm,to)]=newnode
-        else:
-            newnode = Brain.HIDDEN_UNIT_RECORD[(frm,to)]
-
-
-        self.makeConnection(frm,newnode,weight,direction,active)
-        self.makeConnection(newnode,to,None,direction,active)
-
-########################################################################################################################
-
-    def modifyWeights(self,frm,to,weights,direction,active):
-        weights = weights + th.randint(-97,97,weights.shape)/(97*2)
-        self.makeConnection(frm,to,weights,direction,active)
+    def splitConnection(self,frm,to):
+        for conn in self.DNA[to]:
+            if conn['from']==frm:
+                if conn['direction']=='b' or not conn['active']:
+                    return
+                else:
+                    if Brain.HIDDEN_UNIT_RECORD[(frm,to)] == -1:
+                        newnode = "hid"+str(Brain.HIDDEN_UNIT_ID)
+                        Brain.HIDDEN_UNIT_ID+=1
+                        Brain.HIDDEN_UNIT_RECORD[(frm,to)]=newnode
+                    else:
+                        newnode = Brain.HIDDEN_UNIT_RECORD[(frm,to)]
+                    
+                    self.makeConnection(frm,newnode,conn['weight'],conn['direction'],conn['active'])
+                    self.makeConnection(newnode,to,None,conn['direction'],conn['active'])
+                    self.DNA[to].remove(conn)
 
 ########################################################################################################################
 
-    def mutateAddConnection(self,frm,to,weight,direction,active):
-        if random.random()<0.8:
-            self.modifyWeights(frm,to,weight,direction,active)
-        elif random.random()<0.5:
-            self.modifyWeights(frm,to,weight,direction,active)
-            self.makeConnection()
-        else:
-            self.splitConnection(frm,to,weight,direction,active)
+    def mutate(self):
+        nodes = list(self.DNA.keys())
+        for to in nodes:
+            for conn in self.DNA[to]:
+                if random.random()<0.3:
+                    if random.random()<0.9:
+                        self.modifyWeights(conn['from'],to)
+                    else:
+                        self.splitConnection(conn['from'],to)
 
+########################################################################################################################
+#
+#    def splitConnection(self,frm,to,weight,direction,active):
+#        if direction=='b'or not active:
+#            self.makeConnection(frm,to,weight,direction,active)
+#            return
+#        if Brain.HIDDEN_UNIT_RECORD[(frm,to)] == -1:
+#            newnode = "hid"+str(Brain.HIDDEN_UNIT_ID)
+#            Brain.HIDDEN_UNIT_ID+=1
+#            Brain.HIDDEN_UNIT_RECORD[(frm,to)]=newnode
+#        else:
+#            newnode = Brain.HIDDEN_UNIT_RECORD[(frm,to)]
+#
+#
+#        self.makeConnection(frm,newnode,weight,direction,active)
+#        self.makeConnection(newnode,to,None,direction,active)
+#
+########################################################################################################################
+#
+#    def modifyWeights(self,frm,to,weights,direction,active):
+#        weights = weights + th.randint(-97,97,weights.shape)/(970)
+#        self.makeConnection(frm,to,weights,direction,active)
+#
+########################################################################################################################
+#
+#    def mutateAddConnection(self,frm,to,weight,direction,active):
+#        if random.random()<0.7:
+#            self.modifyWeights(frm,to,weight,direction,active)
+#        elif random.random()<0.6:
+#            self.modifyWeights(frm,to,weight,direction,active)
+#            self.makeConnection()
+#        else:
+#            self.splitConnection(frm,to,weight,direction,active)
+#
 ########################################################################################################################
 
     def evaluteNode(self,node):
@@ -262,7 +321,7 @@ class Brain(nn.Module):
 
 ########################################################################################################################
 
-    def forward(self,inp):
+    def forward(self,inp,mode):
         if len(inp)!=self.input_size:
             return -1
 
@@ -280,8 +339,12 @@ class Brain(nn.Module):
             self.evaluteNode("out"+str(out+1))
 
         ans = th.cat([ self.Memory["out"+str(i+1)] for i in range(self.output_size)])
-        ans = nn.Softmax(dim=0)(ans).detach()
-        return th.argmax(ans).tolist()
+        if mode == 's':
+            ans = nn.Softmax(dim=0)(ans).detach()
+            return th.argmax(ans).tolist()
+        else:
+            ans = ans.detach()
+            return ans.tolist()
 
 ########################################################################################################################    
 
@@ -326,16 +389,10 @@ class Brain(nn.Module):
 
 ########################################################################################################################
 if __name__ == "__main__":
-    x = Brain(9,9,50)
-    y = Brain(9,9,40)
+    x = Brain(6,6,15)
+    y = Brain(6,6,15)
     x.drawNetwork()
     y.drawNetwork()
-    z = Brain(x,y)
-    z.drawNetwork()
-    
     for _ in range(10):
-        data = [ random.random() for _ in range(9)]
-        print('x : ',x.forward(data))
-        print('y : ',y.forward(data))
-        print('z : ',z.forward(data))
-        print()
+        x = Brain(x,y)
+        x.drawNetwork()
