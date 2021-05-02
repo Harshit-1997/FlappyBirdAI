@@ -29,7 +29,6 @@ class Population:
         if worst<0:
             add = abs(worst)
         fitnesses = [brain.fitness+add+0.1 for brain in current_gen]
-        print(fitnesses)
         next_gen+=current_gen[:keep]
         for brain in next_gen:
             print(brain.fitness)
@@ -42,15 +41,16 @@ class Population:
 
 ########################################################################################################################
 
-    def evaluateGeneration(self, func):
+    def evaluateGeneration(self, func, process_count):
         queue = mp.Queue()
         processes = [ mp.Process(target=func,args=(pos,player,queue)) for pos,player in self.population.items()]
     
-        for process in processes:
-            process.start()
-    
-        for process in processes:
-            process.join()
+        for i in range(0,len(processes),process_count):
+            for process in processes[i:i+process_count]:
+                process.start()
+        
+            for process in processes[i:i+process_count]:
+                process.join()
     
         fitnesses = []
         for _ in range(self.population_size):
