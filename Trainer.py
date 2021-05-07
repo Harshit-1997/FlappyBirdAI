@@ -24,6 +24,9 @@ def run_agent(pos,player,queue,train=True):
                     pygame.quit()
                     end = True
 
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    end = True
+
         obsx,obsy = obs.getClosestObsticle(bird.x,bird.size)
         data = [bird.x/WIDTH,bird.y/HEIGHT,obsx/WIDTH,obsy/HEIGHT,bird.velocity/100]
         
@@ -56,6 +59,7 @@ def run_agent(pos,player,queue,train=True):
             obs.draw(surface)
             pygame.display.flip()
             clock.tick(60)
+
 
 
 p = Population.Population(5,2,5,250)
