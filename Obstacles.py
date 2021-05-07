@@ -76,22 +76,35 @@ class Obstacles:
             by2 = obs['bottom']['y2']
 
             if y < ty2 and tx1 <= x+r <= tx2:
-                return True
+                return True, -10
 
             if y > by1 and bx1 <= x+r <= bx2:
-                return True
+                return True, -10
 
             if tx2 > x > tx1 and (ty2>y-r or by1<y+r):
-                return True
+                return True, -10
 
             if math.sqrt( (tx1-x)**2 + (ty2-y)**2) < r:  # top right corner
-                return True
+                return True, -10
 
             if math.sqrt( (tx2-x)**2 + (ty2-y)**2) < r:  # top left corner
-                return True
+                return True, -10
             
             if math.sqrt( (bx1-x)**2 + (by1-y)**2) < r:  # bottom right corner
-                return True
+                return True, -10
 
             if math.sqrt( (bx2-x)**2 + (by1-y)**2) < r:  # bottom left corner
-                return True
+                return True, -10
+
+            if tx1<x<tx2 and ty2<y<by1:
+                return False, 20
+
+        return False, 0
+
+########################################################################################################################
+
+    def getClosestObsticle(self,birdx,sz):
+        for obs in self.obstacles:
+            if obs['top']['x2']>birdx-sz:
+                return obs['top']['x1']+self.obstacle_width/2,obs['top']['y2']+self.gap_size/2
+        return birdx+10,self.screen_height/2
