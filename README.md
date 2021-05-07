@@ -1,7 +1,7 @@
-#Flappy Bird AI using Pytorch
+# Flappy Bird AI using Pytorch
 
-To Start : 
-<code>pip install -r requirements.txt</code>
+To Start : <br>
+<code>pip install -r requirements.txt</code><br>
 <code>python Trainer.py</code>
 
-It will to perfectly play the game in 3 4 generation.
+It will learn to perfectly play the game in 3 or 4 generation.
