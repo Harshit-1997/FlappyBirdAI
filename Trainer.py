@@ -25,7 +25,7 @@ def run_agent(pos,player,queue,train=True):
                     end = True
 
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    end = True
+                    end = True  
 
         obsx,obsy = obs.getClosestObsticle(bird.x,bird.size)
         data = [bird.x/WIDTH,bird.y/HEIGHT,obsx/WIDTH,obsy/HEIGHT,bird.velocity/100]
