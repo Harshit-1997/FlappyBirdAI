@@ -1,4 +1,4 @@
-# Flappy Bird AI using Pytorch
+# Flappy Bird AI using NEAT
 
 To Start : <br>
 <code>pip install -r requirements.txt</code><br>
