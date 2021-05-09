@@ -62,12 +62,12 @@ def run_agent(pos,player,queue,train=True):
 
 
 
-p = Population.Population(5,2,5,250)
+p = Population.Population(5,2,1,250)
 for gen in range(1,5000+1):
     p.evaluateGeneration(run_agent,50)
     b = max([brain for brain in p.getPopulation().values()],key= lambda x : x.fitness)
     print(f"best in genenration {gen} = {b.fitness}")
-    if b.fitness>50000 or gen%10==0:
+    if b.fitness>50000:
         b.drawNetwork()
         run_agent(0,b,None,False)
 
