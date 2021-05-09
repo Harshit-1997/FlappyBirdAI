@@ -1,11 +1,10 @@
 from collections import defaultdict as ddict
-from torch import nn
-import torch as th
 import random
 import networkx as nx
 import matplotlib.pyplot as plt
+import numpy as np
 
-class Brain(nn.Module):
+class Brain():
 
     HIDDEN_UNIT_ID=1
     HIDDEN_UNIT_RECORD=ddict(lambda : -1)
@@ -17,11 +16,10 @@ class Brain(nn.Module):
         self.DNA = ddict(lambda : [])
         self.node_data = ddict(lambda : [])
         self.depth = dict()
-        self.Memory = ddict(lambda : th.Tensor([0]))
+        self.Memory = ddict(lambda : np.zeros((1,1)))
         self.order = []
         self.remaining_inputs = []
         self.remaining_outputs = []
-        self.layer = nn.Linear(1,1)
         self.fitness = 0
 
         if type(in_size) == int:
@@ -82,6 +80,7 @@ class Brain(nn.Module):
                     self.makeConnection(parent1[inv]['from'],
                                              parent1[inv]['to'],
                                              parent1[inv]['weight'],
+                                             parent1[inv]['bias'],
                                              parent1[inv]['direction'],
                                              parent1[inv]['active'])
                 else:
@@ -90,12 +89,14 @@ class Brain(nn.Module):
                     self.makeConnection(parent2[inv]['from'],
                                              parent2[inv]['to'],
                                              parent2[inv]['weight'],
+                                             parent2[inv]['bias'],
                                              parent2[inv]['direction'],
                                              parent2[inv]['active'])
             else:
                     self.makeConnection(parent1[inv]['from'],
                                              parent1[inv]['to'],
                                              parent1[inv]['weight'],
+                                             parent1[inv]['bias'],
                                              parent1[inv]['direction'],
                                              parent1[inv]['active'])
         self.mutate()
@@ -109,16 +110,18 @@ class Brain(nn.Module):
             if not node.startswith("inp") and len(self.DNA[node])>0:
                 connections =[]
                 weights = []
+                bias = 0
                 for connection in self.DNA[node]:
                     if connection['active']:
                         connections.append(connection["from"])
                         weights.append(connection["weight"])
+                        bias = connection['bias']
                 if len(connections)>0:
                     self.node_data[node] = []
                     self.node_data[node].append(connections)
-                    wghts = th.cat(weights,dim=1)
-                    wghts = nn.Parameter(wghts)
+                    wghts = np.concatenate(weights,axis=1)
                     self.node_data[node].append(wghts)
+                    self.node_data[node].append(bias)
 
 ########################################################################################################################
 
@@ -129,6 +132,7 @@ class Brain(nn.Module):
                 genome[con['innov']] ={'from':con['from'], 
                                        'to':node, 
                                        'weight':con['weight'], 
+                                       'bias':con['bias'], 
                                        'direction':con['direction'], 
                                        'active':con['active']}
         return genome
@@ -181,7 +185,7 @@ class Brain(nn.Module):
 
 
 ########################################################################################################################
-    def makeConnection(self,cfrm=None,cto=None,weight=None,direction=None,active=None):
+    def makeConnection(self,cfrm=None,cto=None,weight=None,bias=None,direction=None,active=None):
         if cfrm ==None:
             mx = 0
             while True:
@@ -211,9 +215,14 @@ class Brain(nn.Module):
 
                         break
         if weight == None:
-            newweight = th.randint(-97,97,(1,1))/97
+            newweight = np.random.randint(-97,97,(1,1))/97
         else:
-            newweight = th.Tensor(weight.tolist().copy())
+            newweight = weight.copy()
+
+        if bias == None:
+            newbias = np.random.randint(-97,97,(1,1))/97
+        else:
+            newbias = bias.copy()
             
         if active == None:
             active = True
@@ -229,6 +238,7 @@ class Brain(nn.Module):
         self.DNA[cto].append( {'innov':conn,
                                 'from':cfrm,
                                 'weight':newweight,
+                                'bias':newbias,
                                 'direction':direction,
                                 'active':active} )
         if cto in self.remaining_outputs:
@@ -243,9 +253,11 @@ class Brain(nn.Module):
         for conn in self.DNA[to]:
             if conn['from']==frm and conn['active']:
                 if random.random()>0.98:
-                    conn['weight']+=th.randint(-97,97,conn['weight'].shape)/(97*4)
+                    conn['weight']+=np.random.randint(-97,97,conn['weight'].shape)/(97*4)
+                    conn['bias']+=np.random.randint(-97,97,conn['bias'].shape)/(97*4)/10
                 else:
-                    conn['weight']=th.randint(-97,97,conn['weight'].shape)/(97)
+                    conn['weight']=np.random.randint(-97,97,conn['weight'].shape)/(97)
+                    conn['bias']=np.random.randint(-97,97,conn['bias'].shape)/(97)/10
 
 ########################################################################################################################
 
@@ -263,8 +275,8 @@ class Brain(nn.Module):
                         newnode = Brain.HIDDEN_UNIT_RECORD[(frm,to)]
                     
                     conn['active'] = False
-                    self.makeConnection(frm,newnode,conn['weight'],conn['direction'],True)
-                    self.makeConnection(newnode,to,None,conn['direction'],True)
+                    self.makeConnection(frm,newnode,conn['weight'],conn['bias'],conn['direction'],True)
+                    self.makeConnection(newnode,to,None,None,conn['direction'],True)
                     #print(to,self.DNA[to])
 
 ########################################################################################################################
@@ -286,48 +298,21 @@ class Brain(nn.Module):
                         conn['active']=True
 
 ########################################################################################################################
-#
-#    def splitConnection(self,frm,to,weight,direction,active):
-#        if direction=='b'or not active:
-#            self.makeConnection(frm,to,weight,direction,active)
-#            return
-#        if Brain.HIDDEN_UNIT_RECORD[(frm,to)] == -1:
-#            newnode = "hid"+str(Brain.HIDDEN_UNIT_ID)
-#            Brain.HIDDEN_UNIT_ID+=1
-#            Brain.HIDDEN_UNIT_RECORD[(frm,to)]=newnode
-#        else:
-#            newnode = Brain.HIDDEN_UNIT_RECORD[(frm,to)]
-#
-#
-#        self.makeConnection(frm,newnode,weight,direction,active)
-#        self.makeConnection(newnode,to,None,direction,active)
-#
-########################################################################################################################
-#
-#    def modifyWeights(self,frm,to,weights,direction,active):
-#        weights = weights + th.randint(-97,97,weights.shape)/(970)
-#        self.makeConnection(frm,to,weights,direction,active)
-#
-########################################################################################################################
-#
-#    def mutateAddConnection(self,frm,to,weight,direction,active):
-#        if random.random()<0.7:
-#            self.modifyWeights(frm,to,weight,direction,active)
-#        elif random.random()<0.6:
-#            self.modifyWeights(frm,to,weight,direction,active)
-#            self.makeConnection()
-#        else:
-#            self.splitConnection(frm,to,weight,direction,active)
-#
-########################################################################################################################
 
     def evaluteNode(self,node):
         if len(self.DNA[node])>0:
-                conns, weights = self.node_data[node]
-                self.layer.weight = weights
-                inputs = th.cat([self.Memory[con] for con in conns])
-                ans = self.layer(inputs)
-                self.Memory[node] = nn.ELU()(ans)
+                conns, weights, bias = self.node_data[node]
+                inputs = np.concatenate([self.Memory[con] for con in conns])
+                ans = weights@inputs + bias
+                ans[ans<0]=0
+                self.Memory[node] = ans
+
+########################################################################################################################
+
+    def softmax(self,x):
+        x = np.exp(x)
+        ans = [ i/sum(x) for i in x]
+        return ans
 
 ########################################################################################################################
 
@@ -336,15 +321,15 @@ class Brain(nn.Module):
             return -1
 
         for i in range(self.input_size):
-            self.Memory["inp"+str(i+1)] = th.Tensor([inp[i]])
+            self.Memory["inp"+str(i+1)] = np.array([inp[i]]).reshape((1,1))
 
         for node in self.order:
             self.evaluteNode(node)
 
-        ans = th.cat([ self.Memory["out"+str(i+1)] for i in range(self.output_size)])
+        ans = np.concatenate([ self.Memory["out"+str(i+1)] for i in range(self.output_size)])
         if mode == 's':
-            ans = nn.Softmax(dim=0)(ans).detach()
-            return th.argmax(ans).tolist()
+            ans = self.softmax(ans)
+            return np.argmax(ans).tolist()
         else:
             ans = ans.detach()
             return ans.tolist()

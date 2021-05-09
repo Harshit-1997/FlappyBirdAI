@@ -62,7 +62,7 @@ def run_agent(pos,player,queue,train=True):
 
 
 
-p = Population.Population(5,2,3,250)
+p = Population.Population(5,2,5,250)
 for gen in range(1,5000+1):
     p.evaluateGeneration(run_agent,50)
     b = max([brain for brain in p.getPopulation().values()],key= lambda x : x.fitness)
