@@ -6,7 +6,7 @@ import pygame
 WIDTH = 800
 HEIGHT = 600
 
-def run_agent(pos,player,queue,train=True):
+def run_agent(pos,player,queue,sema=None,train=True):
     global WIDTH,HEIGHT
     if not train:
         pygame.init()
@@ -39,7 +39,7 @@ def run_agent(pos,player,queue,train=True):
 
         hit, rev = obs.detectCollision(bird.x,bird.y,bird.size)
 
-        if hit or out or (score>50000 and train):
+        if hit or out or (score>200000 and train):
             end = True
             if train:
                 print(pos,score)
@@ -59,16 +59,18 @@ def run_agent(pos,player,queue,train=True):
             obs.draw(surface)
             pygame.display.flip()
             clock.tick(60)
+    if not sema is None:
+        sema.release()
 
 
 
-p = Population.Population(5,2,1,250)
+p = Population.Population(5,2,5,500)
 for gen in range(1,5000+1):
     p.evaluateGeneration(run_agent,50)
     b = max([brain for brain in p.getPopulation().values()],key= lambda x : x.fitness)
     print(f"best in genenration {gen} = {b.fitness}")
-    if b.fitness>50000:
+    if b.fitness>200000 or gen%10==0:
         b.drawNetwork()
-        run_agent(0,b,None,False)
+        run_agent(0,b,None,None,False)
 
     p.createNextGeneration(10)

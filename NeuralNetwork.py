@@ -331,7 +331,6 @@ class Brain():
             ans = self.softmax(ans)
             return np.argmax(ans).tolist()
         else:
-            ans = ans.detach()
             return ans.tolist()
 
 ########################################################################################################################    

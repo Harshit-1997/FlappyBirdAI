@@ -43,18 +43,20 @@ class Population:
 
     def evaluateGeneration(self, func, process_count):
         queue = mp.Queue()
-        processes = [ mp.Process(target=func,args=(pos,player,queue)) for pos,player in self.population.items()]
-    
-        for i in range(0,len(processes),process_count):
-            for process in processes[i:i+process_count]:
-                process.start()
-        
-            for process in processes[i:i+process_count]:
-                process.join()
+        sema = mp.Semaphore(process_count)
+        processes = [ mp.Process(target=func,args=(pos,player,queue,sema)) for pos,player in self.population.items()]
+
+        for p in processes:
+            sema.acquire()
+            p.start()
+
+        for p in processes:
+            p.join()
     
         fitnesses = []
         for _ in range(self.population_size):
-            fitnesses.append(queue.get_nowait())
+            fit = queue.get()
+            fitnesses.append(fit)
     
         for i,fitness in fitnesses:
             self.population[i].fitness = fitness
