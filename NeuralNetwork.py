@@ -3,6 +3,7 @@ import random
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 
 class Brain():
 
@@ -53,6 +54,8 @@ class Brain():
             self.output_size = parent1.output_size
             self.remaining_inputs = parent1.remaining_inputs
             self.remaining_outputs = parent1.remaining_outputs
+            self.order = parent1.order
+            self.depth = parent1.depth
 
             for inp in range(self.input_size):
                 self.remaining_inputs.append("inp"+str(inp+1))
@@ -153,13 +156,14 @@ class Brain():
                 try:
                     parent_depth.append(self.depth[pnode])
                 except KeyError:
-                    print(pnode,visited[pnode])
+                    parent_depth.append(0)
 
 
         current_depth = max(parent_depth)+1
 
         self.order.append(node)
         self.depth[node]=current_depth
+
 
         return current_depth
 
@@ -179,7 +183,7 @@ class Brain():
         for i in range(self.input_size):
             self.depth["inp"+str(i+1)]=mn_inp_dep
 
-        mx_out_dep = max(self.depth.values())
+        mx_out_dep = max([self.depth['out'+str(i)] for i in range(1,self.output_size)])
         for i in range(self.output_size):
             self.depth["out"+str(i+1)]=mx_out_dep
 
@@ -189,7 +193,7 @@ class Brain():
         if cfrm ==None:
             mx = 0
             while True:
-                if mx>100:
+                if mx>5:
                     return
                 mx+=1
                 a, b = random.choices(list(enumerate(self.remaining_inputs+self.order+self.remaining_outputs)),k=2)
@@ -214,7 +218,9 @@ class Brain():
                                 continue
 
                         break
+        top = False
         if weight == None:
+            top =True
             newweight = np.random.randint(-97,97,(1,1))/97
         else:
             newweight = weight.copy()
@@ -245,7 +251,8 @@ class Brain():
             self.remaining_outputs.remove(cto)
         if cfrm in self.remaining_inputs:
             self.remaining_inputs.remove(cfrm)
-        self.topologicalSort()
+        if top:
+            self.topologicalSort()
 
 ########################################################################################################################
 
@@ -299,19 +306,24 @@ class Brain():
 
 ########################################################################################################################
 
-    def evaluteNode(self,node):
+    def evaluteNode(self,node,mode):
         if len(self.DNA[node])>0:
                 conns, weights, bias = self.node_data[node]
                 inputs = np.concatenate([self.Memory[con] for con in conns])
                 ans = weights@inputs + bias
-                ans[ans<0]=0
+                if mode=='s':
+                    ans[ans<0]=0
+                else:
+                    ans = np.tanh(ans)
                 self.Memory[node] = ans
 
 ########################################################################################################################
 
     def softmax(self,x):
+        mx = np.max(x)
+        x = x-mx
         x = np.exp(x)
-        ans = [ i/sum(x) for i in x]
+        ans = [ i/np.sum(x) for i in x]
         return ans
 
 ########################################################################################################################
@@ -324,14 +336,14 @@ class Brain():
             self.Memory["inp"+str(i+1)] = np.array([inp[i]]).reshape((1,1))
 
         for node in self.order:
-            self.evaluteNode(node)
+            self.evaluteNode(node,mode)
 
         ans = np.concatenate([ self.Memory["out"+str(i+1)] for i in range(self.output_size)])
         if mode == 's':
             ans = self.softmax(ans)
             return np.argmax(ans).tolist()
         else:
-            return ans.tolist()
+            return np.tanh(ans)
 
 ########################################################################################################################    
 
@@ -372,7 +384,81 @@ class Brain():
                 connectionstyle = "arc3,rad=-0.2")
         #nx.draw_networkx_edge_labels(G,pos,edge_labels=edge_labels, font_size=5,label_pos=0.7)
         plt.axis('off')
+        plt.ion()
         plt.show()
+        plt.pause(3)
+        plt.close()
+########################################################################################################################
+
+    def save(self, path):
+        for i in self.Memory.keys():
+            self.Memory[i] = self.Memory[i].tolist()
+
+        for node in self.DNA.keys():
+            for conn in self.DNA[node]:
+                conn['weight'] = conn['weight'].tolist()
+                conn['bias'] = conn['bias'].tolist()
+
+        for node in self.node_data.keys():
+            self.node_data[node][1] = self.node_data[node][1].tolist()
+            self.node_data[node][2] = self.node_data[node][2].tolist()
+
+        with open(path,'w') as f:
+            obj = dict()
+            obj['DNA'] = repr(dict(self.DNA))
+            obj['node_data'] = repr(dict(self.node_data))
+            obj['depth'] = repr(self.depth)
+            obj['Memory'] = repr(dict(self.Memory))
+            obj['order'] = repr(self.order)
+            obj['remaining_inputs'] = repr(self.remaining_inputs)
+            obj['remaining_outputs'] = repr(self.remaining_outputs)
+            obj['fitness'] = repr(self.fitness)
+            obj['in_size'] = repr(self.input_size)
+            obj['out_size'] = repr(self.output_size)
+            f.write(repr(obj))
+        
+        for i in self.Memory.keys():
+            self.Memory[i] = np.array(self.Memory[i])
+
+        for node in self.DNA.keys():
+            for conn in self.DNA[node]:
+                conn['weight'] = np.array(conn['weight'])
+                conn['bias'] = np.array(conn['bias'])
+
+        for node in self.node_data.keys():
+            self.node_data[node][1] = np.array(self.node_data[node][1])
+            self.node_data[node][2] = np.array(self.node_data[node][2])
+
+########################################################################################################################
+    @classmethod
+    def load(cls,path):
+        with open(path,'r') as f:
+            obj = eval(f.read())
+            ins = eval(obj["in_size"])
+            ots = eval(obj["out_size"])
+            newobj = Brain(ins,ots)
+            newobj.DNA = ddict(lambda : [],eval(obj['DNA'])) 
+            newobj.node_data = ddict(lambda:[],eval(obj['node_data']))
+            newobj.depth = eval(obj['depth']) 
+            newobj.Memory = ddict(lambda : np.zeros((1,1)),eval(obj['Memory']))
+            newobj.order = eval(obj['order']) 
+            newobj.remaining_inputs = eval(obj['remaining_inputs']) 
+            newobj.remaining_outputs = eval(obj['remaining_outputs']) 
+            newobj.fitness = eval(obj['fitness']) 
+
+        for i in newobj.Memory.keys():
+            newobj.Memory[i] = np.array(newobj.Memory[i])
+
+        for node in newobj.DNA.keys():
+            for conn in newobj.DNA[node]:
+                conn['weight'] = np.array(conn['weight'])
+                conn['bias'] = np.array(conn['bias'])
+
+        for node in newobj.node_data.keys():
+            newobj.node_data[node][1] = np.array(newobj.node_data[node][1])
+            newobj.node_data[node][2] = np.array(newobj.node_data[node][2])
+
+        return newobj
 
 ########################################################################################################################
 if __name__ == "__main__":

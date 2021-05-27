@@ -21,7 +21,6 @@ class Population:
     def createNextGeneration(self,keep=5):
         next_gen =[]
         current_gen = list(self.population.values())
-        self.population = dict()
         current_gen.sort(key=lambda brain:brain.fitness, reverse=True)
         current_gen = current_gen[:self.population_size//2]
         add = 0
@@ -36,6 +35,8 @@ class Population:
             parent1,parent2 = random.choices(current_gen,fitnesses,k=2)
             next_gen.append(Brain(parent1,parent2))
 
+        del self.population
+        self.population = dict()
         for i in range(self.population_size):
             self.population[i] = next_gen[i]
 
@@ -52,6 +53,7 @@ class Population:
 
         for p in processes:
             p.join()
+            p.terminate()
     
         fitnesses = []
         for _ in range(self.population_size):
