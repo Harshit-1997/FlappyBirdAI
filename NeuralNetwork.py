@@ -5,19 +5,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 
+
+def get_np_zeros():
+    return np.zeros((1,1))
+
+
+def get_negative():
+    return  -1
+
+
 class Brain():
 
     HIDDEN_UNIT_ID=1
-    HIDDEN_UNIT_RECORD=ddict(lambda : -1)
+    HIDDEN_UNIT_RECORD=ddict(get_negative)
     CONNECTION_ID=1
-    CONNECTION_RECORD=ddict(lambda : -1)
+    CONNECTION_RECORD=ddict(get_negative)
 
     def __init__(self, in_size, out_size=2, initial_connections=5):
         super().__init__()
-        self.DNA = ddict(lambda : [])
-        self.node_data = ddict(lambda : [])
+        self.DNA = ddict(list)
+        self.node_data = ddict(list)
         self.depth = dict()
-        self.Memory = ddict(lambda : np.zeros((1,1)))
+        self.Memory = ddict(get_np_zeros)
         self.order = []
         self.remaining_inputs = []
         self.remaining_outputs = []

@@ -63,14 +63,14 @@ def run_agent(pos,player,queue,sema=None,train=True):
         sema.release()
 
 
+if __name__ == '__main__':
+    p = Population.Population(5,2,5,250)
+    for gen in range(1,5000+1):
+        p.evaluateGeneration(run_agent,50)
+        b = max([brain for brain in p.getPopulation().values()],key= lambda x : x.fitness)
+        print(f"best in genenration {gen} = {b.fitness}")
+        if b.fitness>200000:
+            b.drawNetwork()
+            run_agent(0,b,None,None,False)
 
-p = Population.Population(5,2,5,250)
-for gen in range(1,5000+1):
-    p.evaluateGeneration(run_agent,50)
-    b = max([brain for brain in p.getPopulation().values()],key= lambda x : x.fitness)
-    print(f"best in genenration {gen} = {b.fitness}")
-    if b.fitness>200000:
-        b.drawNetwork()
-        run_agent(0,b,None,None,False)
-
-    p.createNextGeneration(10)
+        p.createNextGeneration(10)
